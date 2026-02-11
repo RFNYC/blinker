@@ -11,13 +11,13 @@ GPIO.setup(24, GPIO.OUT)
 GPIO.setup(25, GPIO.OUT)
 
 for x in range(5):
-    GPIO.output(18, GPIO.HIGH)  # Turn on the LED
+    GPIO.output(18, GPIO.HIGH)  # Turn on the LEDS
     GPIO.output(24, GPIO.HIGH)  
     GPIO.output(25, GPIO.HIGH) 
     # WAIT 1 SECOND WHILE ON
     time.sleep(1)
 
-    GPIO.output(18, GPIO.LOW)   # Turn off the LED
+    GPIO.output(18, GPIO.LOW)   # Turn off the LEDS
     GPIO.output(24, GPIO.LOW)  
     GPIO.output(25, GPIO.LOW) 
     # WAIT 1 SECOND WHILE OFF
