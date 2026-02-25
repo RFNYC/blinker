@@ -4,7 +4,9 @@ This repo is intended to show how to use [libgpiod](https://libgpiod.readthedocs
 
 # Examples
 1. libgpiod-led: Output to 3 LEDs.
-2. libgpiod-Sensor: Output to active buzzer and LED via sensor input.
+2. libgpiod-sensor: Output to active buzzer and LED via sensor input.
+3. libgpiod-monitor: Watch for edge-events from a gpiopin on a separate thread.
+4. ...
 
 ## Other
 Inspired by [starnight's repo](https://github.com/starnight/libgpiod-example?tab=readme-ov-file) with libgpiod examples for C.
