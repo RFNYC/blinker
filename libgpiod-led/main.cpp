@@ -11,18 +11,6 @@ int main() {
         // info about the 40 pin header
         std::cout << main_header.get_info() << '\n';
 
-        /*
-        To do anything with the gpio lines on the main header you need to build a line request.
-        You can include line settings for multiple pins at once as part of one request.
-        A basic line request to blink an LED should have the following:
-        ----------------------------------------------------------------------------------------------------------------------
-        CONSUMER-NAME: the name of the file tampering with a pin at a given moment.
-        LINE-SETTINGS: the actual line and attributes you want to give to that line.
-            LINE-NUMBER: BCM # of the pin you'd like to access.
-            ELECTRICITY-DIRECTION: OUTPUT if you're pushing volts to a pin, INPUT if you're listening for a signal from a pin.
-        ----------------------------------------------------------------------------------------------------------------------
-        */
-
         // THE CODE BELOW DESCRIBES HOW TO BUILD A REQUEST WITH MULTIPLE GPIO LINES 
         gpiod::request_builder line_request = main_header.prepare_request();
         gpiod::line_settings line_settings = gpiod::line_settings(); // Initializes a line_settings object with default values.
@@ -67,7 +55,7 @@ int main() {
         }
 
         // Once you're done working with the pins make sure to close up shop.
-        gpio_pins.release()
+        gpio_pins.release();
         main_header.close();
 
     } catch (const std::system_error& e) {
