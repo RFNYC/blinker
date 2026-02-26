@@ -11,16 +11,17 @@ For all examples I used gpiochip0 to control the main 40pin header of the raspbe
 4. ...
 
 # Need to know:
+
 To do anything to the gpio pins on the main header you need to build a line request (or batch line request).
 You can include line settings for multiple pins at once as part of one request.
 A basic line request object should have the following:
-----------------------------------------------------------------------------------------------------------------------
+
 CONSUMER-NAME: the name of the file tampering with a pin at a given moment.
 LINE-SETTINGS: the actual line and attributes you want to give to that line.
     LINE-NUMBER: BCM number of the pin you'd like to access.
     ELECTRICITY-DIRECTION: OUTPUT if you're pushing volts to a pin, INPUT if you're listening for a signal from a pin.
     EDGE-DETECTION: BOTH-WAYS | Rising & Falling edge events are how you track electrical state.
-----------------------------------------------------------------------------------------------------------------------
+
 To use edge events you need to input request object to watch for any status changes for a duration of time.
 If any occur, to read them you will need create a buffer and then read from it. (Shown best in monitor example).
 
