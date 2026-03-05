@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <linux/i2c-dev.h>
 
+#include "bin-cmds.h"
+
 /* 
 PCF875 Microcontroller docs --> https://cdn.sparkfun.com/assets/9/5/f/7/b/HD44780.pdf | Table 6 (pg. 23-25), Table 12 (pg. 42), Wakeup (pg. 46)
 PCF875 SCHEMATIC --> https://github.com/HvandeVen/PCF8574-Display/blob/master/I2C%20LCD%20Adapter%20Schematic.pdf
@@ -62,9 +64,33 @@ void edit_pins(int i2c_adapter, uint8_t pin_state){
 }
 
 // use this after LCD is set to 4-bit
-void send_byte(int i2c_adapter, uint8_t pin_state, uint8_t rs_mode){
+void send_byte(int i2c_adapter, uint8_t value, uint8_t rs_mode){
 
+    // rs_mode = 0 if sending a command, rs_mode = 1 if sending data (letters)
 
+    /* 
+    Bitshifting logic:
+    We need the first four bits to be clear at all times for our management bits to fall in nicely.
+    This means we need to split up our letters into 4bit chunks and then send them one after the other.
+
+    Example: H = 0b01001000 we're gonna turn that into 0100 1000 by excluding the first four bits and sending the management bits their place.
+    Then once we flip the pin on we'll do it again. This time we'll shift the first four bits resulting in 1000 0000 and then management bits.
+    Then we'll flip the enable pin back down and that should complete the message.
+
+    The LCD has an internal system somewhere which understands that when its running in 4-bit mode it needs to wait for two distinct
+    write calls. It has an 8-bit brain so 4 databits isn't enough, it will literally wait until the next 4 databits come through and piece
+    those bits together into one byte which it can then display. It executes whatever function the management bits 
+    */
+
+    // let value = 0100 1000:
+    // exclude first four bits, then editpins(high), bitshift four bits to the left and exclude first four again then editpins(low)
+    // uint8_t my_val{ 0b01001000 };
+
+    uint8_t high_instruction = (value & 0b11110000) | PIN3_BL | rs_mode;
+    edit_pins(i2c_adapter, high_instruction);
+
+    uint8_t low_instruction = ((value << 4) & 0b11110000) | PIN3_BL | rs_mode;
+    edit_pins(i2c_adapter, low_instruction);
 
 }
 
@@ -87,8 +113,7 @@ int main() {
     }
 
     // After this point we're good to go, now we can use the write function to send instructions.
-    // Wake have to make it wake up: pg
-    // Before we do anything we need to tell the thing to wake up and run in 4 bit mode. Refer to Table-12, Step 3 - Function set
+    // Before we do anything we need to tell the thing to wake up and run in 4 bit mode. Refer to pg46 and then Table-12, Step 3 - Function set
     // They expect this in 2 goes i think? I'm just going to send the instruction to ping pins 4 & 5 three times.
     const uint8_t wake_up{ PIN4_D4 | PIN5_D5 };
     const uint8_t set_4_bit{ PIN5_D5 };
@@ -99,18 +124,31 @@ int main() {
     edit_pins(i2c_adapter, set_4_bit);
 
     // Now that the system is running in 4-bit we should refer to table 6 for the rest of our instructions.
-
     // All of the bytes shown in table 6 represent how the microcontroller will interpret your bytes when RS is set to 0.
     // In other words whenever you want to set a command, set RS to 0 and check table 6 for what you want.
 
     /*
-    TODO: Now that we're in four bit mode setup a function to send information in 4bit intervals (takes RS=0 and RS=1).
-    After you do that use the function to send (PAGE 23) -> commands 2, 3, and 4 using RS=1.   
+    After you do that use the send_byte() to send (PAGE 23) -> commands 2, 3, and 4 using RS=1.  (These are startup commands)
     command 1 is the display clear (clear text) command so you'd run that after you figure out how to write text to screen.
-
     When you aren't sending commands you let RS=0 and in theory the 8-bits you send should represent letters? Look at the ASCII conversion.
     */
-    
+
+    // STARTUP ORDER: check page 23 for the values associated with each byte command shown here
+    // 1.) FUNCTION SET
+    // 2.) DISPLAY ON/OFF CONTROL
+    // 3.) ENTRY MODE SET
+    // --- READY FOR USE ---
+
+    send_byte(i2c_adapter, S_FUNCTION_SET, 0);
+    send_byte(i2c_adapter, S_DISPLAY_SET, 0);
+    send_byte(i2c_adapter, S_CHAR_ENTRY_SET, 0);
+    send_byte(i2c_adapter, CLEAR_DISPLAY, 0);
+
+    std::string message = "HELLO WORLD!1111!!";
+
+    for (char letter : message){
+        send_byte(i2c_adapter, letter, 1);
+    }
 
     return 0;
 }
