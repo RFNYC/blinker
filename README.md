@@ -8,6 +8,7 @@ For all examples I used gpiochip0 to control the main 40pin header of the raspbe
 1. libgpiod-led: Output to 3 LEDs.
 2. libgpiod-monitor: Watch for edge-events from a gpiopin on a separate thread.
 3. libgpiod-sensor: Output to active buzzer and LED via sensor input.
+4. capstone1 (wip): Morse Code challenge + alarm system & push notifications.
 
 # Need to know (libgpiod):
 
