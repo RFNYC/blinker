@@ -2,8 +2,6 @@ from flask import Flask
 from flask import request
 from methods import trigger_stop, send_notification
 
-# TODO: Fix server refusing to connect over mobile
-
 app = Flask(__name__)
 
 @app.route("/")
@@ -38,3 +36,6 @@ def stop_alarm():
         print("route: alarm - Unexpected HTTP-request recieved.")
 
     return "<p>Attempting to stop alarm.</p>"
+
+if __name__ == "__main__":
+        app.run(host='0.0.0.0', port=5000) # Listen on all interfaces, port 5000

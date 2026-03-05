@@ -4,6 +4,7 @@ from dotenv import find_dotenv, load_dotenv
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 key = os.getenv("TOPIC")
+address = os.getenv("ADDRESS")
 url = f'https://ntfy.sh/{key}'
 
 # For more information on title, priority, tags, ect. 
@@ -16,7 +17,7 @@ def send_notification():
     headers={
         "Title": "Unauthorized Access Detected!",
         "Priority": "urgent",
-        "Click": "http://127.0.0.1:5000/alarm",
+        "Click": f'{address}/alarm',
 
         # Some tags reference specific emojis which appear in messages (can be seen in documentation). 
         # The tag does not refer to an emoji your custom tag will appear as you've written.
