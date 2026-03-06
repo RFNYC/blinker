@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <unistd.h>
 
 // To avoid overbloating main im gonna define some abstractions which should almost never change here.
 // I'm going to denote any startup version of a byte with S_... so variants can be defined later.
@@ -27,6 +28,8 @@ S = 0; No shift         (DO NOT CHANGE)
 
 
 // The following bytes are commands based on their Table 6 counterparts, binary passed to the func represents the structure given in the table. 
+// for the 2nd line command: see table 13, step 8 (set DDRAM address) - move cursor to second line
+
 // STARTUP COMMANDS:
 const uint8_t S_FUNCTION_SET{ 0b00101000 };
 const uint8_t S_DISPLAY_SET{ 0b00001100 };
@@ -34,4 +37,8 @@ const uint8_t S_CHAR_ENTRY_SET{ 0b00000110 };
 
 // OTHER:
 const uint8_t CLEAR_DISPLAY{ 0b00000001 };
+const uint8_t GOTO_SECOND_LINE{ 0b11000000 };
 
+double fsleep(double seconds) {
+    return usleep(seconds * 1000000);
+}

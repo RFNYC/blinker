@@ -1,12 +1,15 @@
 #include <iostream>
 #include <cstdint>     // for unsigned-types
+#include <cstdlib>
 
 #include <fcntl.h>     // open files
 #include <sys/ioctl.h> // input/output for files [write()]
 #include <unistd.h>
 #include <linux/i2c-dev.h>
 
-#include "bin-cmds.h"
+#include "headers/bin-cmds.hpp"
+#include "headers/HTTPRequest.hpp"
+#include "headers/dotenv.hpp"
 
 /* 
 PCF875 Microcontroller docs --> https://cdn.sparkfun.com/assets/9/5/f/7/b/HD44780.pdf | Table 6 (pg. 23-25), Table 12 (pg. 42), Wakeup (pg. 46)
@@ -144,11 +147,76 @@ int main() {
     send_byte(i2c_adapter, S_CHAR_ENTRY_SET, 0);
     send_byte(i2c_adapter, CLEAR_DISPLAY, 0);
 
-    std::string message = "HELLO WORLD!1111!!";
+    // Countdown
+    uint8_t seconds = 10;
 
-    for (char letter : message){
-        send_byte(i2c_adapter, letter, 1);
+    for (int i = 0; i <= 10; i++){
+        send_byte(i2c_adapter, CLEAR_DISPLAY, 0);
+
+        std::string s = std::to_string(seconds);
+        for (char c : s) {
+            send_byte(i2c_adapter, c, 1); // '1' is the rs_mode for DATA
+        }
+
+        seconds--;
+
+        fsleep(1);
     }
+
+    send_byte(i2c_adapter, CLEAR_DISPLAY, 0);
+
+    // print hello world (with two lines)
+    std::string message = "Come on come on";
+    std::string message2 = "and F.T.W.W.W!";
+
+    for (char character : message){
+        send_byte(i2c_adapter, character, 1);
+    }
+
+    send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
+
+     for (char character : message2){
+        send_byte(i2c_adapter, character, 1);
+    }
+
+    /*
+    Extra libraries used for this section:
+    dotenv.h, HTTPRequest.h
+    https://github.com/laserpants/dotenv-cpp
+    https://github.com/elnormous/HTTPRequest
+    */
+    try {
+        // This code makes a post request to flask to send the code 10.
+        dotenv::init();
+        const auto address = std::getenv("NOTIFICATION_ADDRESS");
+        http::Request request{address};
+
+        const std::string body = "10";
+        const auto response = request.send("POST", body, {
+            {"Content-Type", "application/json"}
+        });
+        std::cout << std::string{response.body.begin(), response.body.end()} << '\n'; // print the result
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Request failed, error: " << e.what() << '\n';
+    }
+
+    std::cout << "Finished instructions. Closing in 5 seconds..." << '\n';
+    fsleep(5);
+    std::cout << "Closing..." << std::endl;
+
+
+    // TODO: TURN THESE INTO COMMANDS FOR YOUR HEADER
+    send_byte(i2c_adapter, CLEAR_DISPLAY, 0); 
+    // Shuts down internal display
+    send_byte(i2c_adapter, 0x08, 0);
+    // Completely turns off LCD Backlight.
+    uint8_t blackout = 0x00;
+    write(i2c_adapter, &blackout, 1);
+
+    // Give the OS back its resource
+    close(i2c_adapter);
 
     return 0;
 }
