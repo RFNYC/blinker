@@ -11,7 +11,6 @@
 #include "headers/HTTPRequest.hpp"
 #include "headers/dotenv.hpp"
 
-
 int main() {
 
     const std::string filepath{ "/dev/i2c-1" };
@@ -31,26 +30,18 @@ int main() {
     LCD1602 lcd(i2c_adapter, lcd_address);
 
     lcd.wake_up();
-    fsleep(1);
+    fsleep(0.5);
+    
+    std::cout<<"starting letters"<<'\n';
+    std::string my_msg = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    lcd.write_animation(my_msg);
 
-    int counter{10};
-    std::string str_template = "Time Left: ";
-    lcd.send_string(str_template, "BALLS");
+    fsleep(3);
+    lcd.clear();
 
-    for(int i = 0; i < 11; i++){
-        lcd.delete_char(11,0);
-        lcd.delete_char(12,0);
-        lcd.cursor_pos(11,0);
-        lcd.send_string(std::to_string(counter));
-        counter --;
-
-        fsleep(1);
-    }
-
-    fsleep(1);
-    lcd.shutdown();
-
-
+    // TODO: WRITE LOGIC TO TURN BUTTON PRESSES INTO A STRING LIKE THIS VIA LIBGPIOD. THIS IS THE HOMESTRETCH!!!!
+    // Once finished move print_morse to private i think...
+    lcd.print_morse("-...");
 
     /*
     Extra libraries used for this section:

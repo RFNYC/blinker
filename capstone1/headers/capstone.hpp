@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <unistd.h>
+#include <map>
 
 // OTHER
 double fsleep(double seconds) {
@@ -36,6 +37,7 @@ const uint8_t S_CHAR_ENTRY_SET{ 0b00000110 };
 // OTHER:
 const uint8_t CLEAR_DISPLAY{ 0b00000001 };
 const uint8_t GOTO_SECOND_LINE{ 0b11000000 };
+const uint8_t TURN_ON_CURSOR{ 0b00001111 };
 
 // SHUTDOWN:
 const uint8_t K_INTERNAL_DISPLAY{ 0b00001000 };
@@ -45,6 +47,22 @@ class LCD1602{
     private:
         int i2c_adapter;
         int slave_address;
+
+        // Keeping track of cursor state
+        bool cursor_toggled{ false }; // 0 for OFF, 1 for ON
+        int cursor_x{ 0 };
+        int cursor_y{ 0 };
+
+        // MORSE-CODE MAP:
+        std::map<std::string, char> letter_table = {
+            {".-",   'A'}, {"-...", 'B'}, {"-.-.", 'C'}, {"-..",  'D'},
+            {".",    'E'}, {"..-.", 'F'}, {"--.",  'G'}, {"....", 'H'},
+            {"..",   'I'}, {".---", 'J'}, {"-.-",  'K'}, {".-..", 'L'},
+            {"--",   'M'}, {"-.",   'N'}, {"---",  'O'}, {".--.", 'P'},
+            {"--.-", 'Q'}, {".-.",  'R'}, {"...",   'S'}, {"-",    'T'},
+            {"..-",  'U'}, {"...-", 'V'}, {".--",  'W'}, {"-..-", 'X'},
+            {"-.--", 'Y'}, {"--..", 'Z'}
+        };
 
         // ---- FUNCTIONS ----
         void edit_pins(int i2c_adapter, uint8_t pin_state){
@@ -102,6 +120,29 @@ class LCD1602{
         void clear_display(const int i2c_adapter){
             send_byte(i2c_adapter, CLEAR_DISPLAY, 0);
         }
+
+        // Writes one character at a time and shifts the cursor over by 1.
+        void character_feeder(char character){
+
+            if (cursor_x == 16) {
+                cursor_x = 0;
+                cursor_y = 1;
+                cursor_pos(cursor_x, cursor_y);
+                send_byte(i2c_adapter, character, 1);
+                usleep(500);
+
+            } else if (cursor_x > 16 && cursor_y == 1) {
+                std::cout << "Warning: character_feeder() has run out of space to write. Any new characters after this point will not be displayed." << std::endl;
+
+            } else {
+                send_byte(i2c_adapter, character, 1);
+                usleep(500);
+                cursor_x++;
+
+            }
+
+        }
+
 
     public:
 
@@ -172,6 +213,10 @@ class LCD1602{
         }
 
         send_byte(i2c_adapter, 0b10000000 | address, 0); 
+
+        // Keeping track of cursor position
+        cursor_x = x;
+        cursor_y = y;
     }
 
     /*
@@ -186,6 +231,55 @@ class LCD1602{
         cursor_pos(0,0);
     }
 
+    void toggle_cursor(){
+        
+        if(cursor_toggled == 0){
+            send_byte(i2c_adapter, TURN_ON_CURSOR, 0);
+            cursor_toggled = true;
+        } else {
+            // Return to startup display settings (cursor off)
+            send_byte(i2c_adapter, S_DISPLAY_SET, 0);
+            cursor_toggled = false;
+        }
+
+    }
+ 
+    void print_morse(const std::string& message){
+            if(char character = letter_table.at(message)){
+                character_feeder(character);
+            }
+        }
+    
+    // Types a given string character by character (Proof of concept function). 
+    void write_animation(const std::string &message){
+            clear();
+            toggle_cursor();
+            for (char character : message){  
+                character_feeder(character);
+                fsleep(0.1);
+            }
+            toggle_cursor();
+        }
+
+    /*
+    Delete all characters from a row on LCD screen.
+    X=1: Row-1
+    X=2: Row-2
+    
+    Passing no arguments --> clear entire screen.
+    */
+    void clear(int X = 0){
+        if(X == 1){
+            cursor_pos(0,0);
+            send_string("                ");
+        } else if (X == 2){
+            cursor_pos(0,1);
+            send_string("", "                ");
+        } else {
+            clear_display(i2c_adapter);
+        }
+    }
+
     // Constructor (runs on initialization)
     LCD1602(int adapter_val, uint8_t address_val ){
 
@@ -197,7 +291,9 @@ class LCD1602{
 
     // Destructor (runs on object deletion)
     ~LCD1602(){
-        shutdown();
+
+        // Keep this commented out during testing unless you want the device to turn off after the script finishes.
+        // shutdown();
     }
 };
 
