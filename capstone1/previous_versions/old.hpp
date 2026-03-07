@@ -5,6 +5,7 @@
 
 // To avoid overbloating main im gonna define some abstractions which should almost never change here.
 // I'm going to denote any startup version of a byte with S_... so variants can be defined later.
+// shutdown commands will be denoted with K_... for kill x feature.
 
 /*
 1. Display clear => 0000 0001
@@ -38,6 +39,10 @@ const uint8_t S_CHAR_ENTRY_SET{ 0b00000110 };
 // OTHER:
 const uint8_t CLEAR_DISPLAY{ 0b00000001 };
 const uint8_t GOTO_SECOND_LINE{ 0b11000000 };
+
+// SHUTDOWN:
+const uint8_t K_INTERNAL_DISPLAY{ 0b00001000 };
+const uint8_t K_BACKLIGHT{ 0b00000000 };
 
 double fsleep(double seconds) {
     return usleep(seconds * 1000000);
