@@ -182,12 +182,71 @@ class LCD1602{
         shutdown_lcd(i2c_adapter);
     }
 
-    void send_msg(const std::string message){
+    // Pass the string by reference to avoid copying a compound type (cardinal sin)
+    void send_string(const std::string& message = "", const std::string& message2 = ""){
 
-        for(char character : message){  
+        int char_count = 0;
+        int lines_in_use = 1;
+
+        for(char character : message){
+            if(char_count == 16){
+                send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
+                lines_in_use++;
+            }
+
+            if(char_count == 31){
+                std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
+            }
+
             send_byte(i2c_adapter, character, 1);
+            char_count++;
         }
         
+        // Only send the second message if the first does not exceed 16 chars
+        if(message2 != ""){
+            if(lines_in_use > 1){
+                std::cout << "Cannot accept the message: " << message2 << ". The second line is already in use by message 1.\nPlease keep your first message under 17 characters." << std::endl;
+            } else {
+                send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
+
+                for(char character : message2){
+                    if(char_count == 31){
+                        std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
+                    }
+
+                    send_byte(i2c_adapter, character, 1);
+                    char_count++;
+                }
+            }
+        }
+    }
+
+    /*
+    Sets the cursor to your chosen (x, y) coordinate on the screen.
+    y: y=line-1, 1=line-2
+    */
+    void cursor_pos(uint8_t x, uint8_t y) {
+        uint8_t address;
+        
+        if (y == 0) {
+            address = 0b00000000 + x;
+        } else {
+            address = 0b01000000 + x;
+        }
+
+        send_byte(i2c_adapter, 0b10000000 | address, 0); 
+    }
+
+    /*
+    Overwrites the character to your chosen (x, y) coordinate with an empty space.
+    y: y=line-1, 1=line-2
+    */
+    void delete_char(uint8_t x, uint8_t y) {
+        cursor_pos(x,y);
+        send_byte(i2c_adapter, ' ', 1);
+
+        // Send the cursor back to the origin for future use
+        cursor_pos(0,0);
     }
 
     // Constructor (runs on initialization)
@@ -201,7 +260,7 @@ class LCD1602{
 
     // Destructor (runs on object deletion)
     ~LCD1602(){
-        //
+        shutdown();
     }
 };
 

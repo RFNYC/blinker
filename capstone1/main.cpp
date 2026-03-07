@@ -33,9 +33,21 @@ int main() {
     lcd.wake_up();
     fsleep(1);
 
-    lcd.send_msg("HELLO WORLD!");
+    int counter{10};
+    std::string str_template = "Time Left: ";
+    lcd.send_string(str_template, "BALLS");
 
-    fsleep(5);
+    for(int i = 0; i < 11; i++){
+        lcd.delete_char(11,0);
+        lcd.delete_char(12,0);
+        lcd.cursor_pos(11,0);
+        lcd.send_string(std::to_string(counter));
+        counter --;
+
+        fsleep(1);
+    }
+
+    fsleep(1);
     lcd.shutdown();
 
 
@@ -63,8 +75,8 @@ int main() {
         std::cerr << "Request failed, error: " << e.what() << '\n';
     }
 
-    std::cout << "Closing in 5 seconds..." << '\n';
-    fsleep(5);
+    std::cout << "Closing..." << '\n';
+    fsleep(1);
     std::cout << "Finished." << std::endl;
 
     return 0;
