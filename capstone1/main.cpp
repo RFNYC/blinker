@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdint>     // for unsigned-types
 #include <cstdlib>
+#include <chrono>      // needed for time
 
 #include <fcntl.h>     // open files
 #include <sys/ioctl.h> // input/output for files [write()]
@@ -32,16 +33,14 @@ int main() {
     lcd.wake_up();
     fsleep(0.5);
     
-    std::cout<<"starting letters"<<'\n';
-    std::string my_msg = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    std::string my_msg = "...---...";
     lcd.write_animation(my_msg);
-
-    fsleep(3);
-    lcd.clear();
 
     // TODO: WRITE LOGIC TO TURN BUTTON PRESSES INTO A STRING LIKE THIS VIA LIBGPIOD. THIS IS THE HOMESTRETCH!!!!
     // Once finished move print_morse to private i think...
-    lcd.print_morse("-...");
+    lcd.print_morse("...");
+    lcd.print_morse("---");
+    lcd.print_morse("...");
 
     /*
     Extra libraries used for this section:
