@@ -1,4 +1,4 @@
-# libgpiod event-monitor example: push button
+# libgpiod event-monitor example: thread
 
 In this code I'm going to have a loop that watches for an edge-event in the main thread and a timer function in another thread.
 The goal of the second thread is to monitor the number of seconds between startup and the first event detection, after that the thread stops.
