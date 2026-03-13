@@ -12,15 +12,16 @@ def Index():
 @app.route("/notification", methods=['POST'])
 def push_notification():
     if request.method == 'POST':
-        error_code = request.get_data().decode()
-        if error_code == '10':
-            print("Sending Notification...")
+        response_code = request.get_data().decode()
+        if response_code == '401':
+            print("Data Recieved: ", response_code)
+            print("Sending Warning Notification...")
             send_notification()
+        elif response_code == '200':
+            print("Data Recieved: ", response_code)
+            print("Final key was accepted. No action required.")
         else:
-            print("Unexpected POST request data recieved. Please check your code.")
-            print("Data Recieved: ", error_code)
-    else:
-        print("route: notification - Unexpected HTTP-request recieved.")
+            print("Route: notification - Unexpected HTTP-request recieved.")
 
     return "<p>Attempting to send notification...</p>"
 
@@ -33,7 +34,7 @@ def stop_alarm():
         print("Stopping Alarm...")
         trigger_stop()
     else:
-        print("route: alarm - Unexpected HTTP-request recieved.")
+        print("Route: alarm - Unexpected HTTP-request recieved.")
 
     return "<p>Attempting to stop alarm.</p>"
 

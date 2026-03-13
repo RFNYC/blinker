@@ -1,3 +1,5 @@
+import subprocess
+
 import requests, os
 from dotenv import find_dotenv, load_dotenv
 
@@ -26,6 +28,13 @@ def send_notification():
 
     return 0
 
+
 def trigger_stop():
-    print("alarm stopped")
+    # finds and kills the c++ process you create via ./capstone
+    # also sends SIGINT, but by the time this method runs the main loop should be finished though so its okay.
+    try:
+        subprocess.run(["pkill", "-INT", "capstone"])
+        print("Sent SIGINT to C++ process.")
+    except Exception as e:
+        print(f"Failed to signal C++: {e}")
     return 0

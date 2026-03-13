@@ -1,7 +1,9 @@
 #include <iostream>
 #include <cstdint>    // for unsigned-types
 #include <cstdlib>
-#include <chrono>      // needed for time
+#include <chrono>     // needed for time
+#include <atomic>
+#include <csignal>
 
 #include <fcntl.h>     // open files
 #include <sys/ioctl.h> // input/output for files [write()]
@@ -13,15 +15,27 @@
 #include "headers/dotenv.hpp"
 #include "headers/capstone.hpp" // my userspace-driver/HAL
 
+std::atomic<bool> continue_loop = true;
+void stop_loop(int signum){
+    continue_loop = false;
+}
+
+// DO NOT USE IN MAIN LOOP. MEANT FOR SMALL FLASHES DURING STARTUP.
+void single_beep(gpiod::line_request& outputs, float time, int output_pin){
+    outputs.set_value(output_pin, gpiod::line::value::ACTIVE);
+    fsleep(time);
+    outputs.set_value(output_pin, gpiod::line::value::INACTIVE);
+}
+
 /*
 TODO:
-- Implement a killswitch (ctrl-c) to release resources if you dont want to finish the loop.
-- Add a flag of somekind that allows the code program to end the while(true) loop after the countdown finishes.
 - Hook alarm system via flask and add some more lights.
 */
 
-
 int main() {
+
+    // Register stop_loop() as your CTRL+C function via <csignal>
+    std::signal(SIGINT, stop_loop);
 
     // --- LCD ---
     const std::string filepath{ "/dev/i2c-1" };
@@ -53,12 +67,16 @@ int main() {
     const unsigned int button{21};
     const unsigned int active_buzzer{5};
     const unsigned int red_led{6};
+    const unsigned int white_led{19};
+    const unsigned int green_led{13};
 
     // prepare gpiopins
     gpiod::request_builder output_request = main_header.prepare_request();
     gpiod::line_settings output_settings = gpiod::line_settings();
     output_request.set_consumer("main.cpp");
     output_request.add_line_settings(red_led, output_settings.set_direction(gpiod::line::direction::OUTPUT));
+    output_request.add_line_settings(white_led, output_settings.set_direction(gpiod::line::direction::OUTPUT));
+    output_request.add_line_settings(green_led, output_settings.set_direction(gpiod::line::direction::OUTPUT));
     output_request.add_line_settings(active_buzzer, output_settings.set_direction(gpiod::line::direction::OUTPUT));
 
     gpiod::request_builder input_request = main_header.prepare_request();
@@ -66,20 +84,57 @@ int main() {
     input_request.set_consumer("main.cpp");
     input_settings.set_direction(gpiod::line::direction::INPUT);
     input_settings.set_edge_detection(gpiod::line::edge::BOTH);
-    input_request.add_line_settings(button, input_settings);
 
     // This tethers the button to the high state, more explanation needed write notes on this.
     // KEEPS PIN AT 3.3V UNLESS INTERACTED WITH.
     input_settings.set_bias(gpiod::line::bias::PULL_UP);
-    
+    input_request.add_line_settings(button, input_settings);
+
     gpiod::line_request outputs = output_request.do_request();
     gpiod::line_request inputs = input_request.do_request();
     // ---------------------
 
+    // FLAG FOR STOPPING HTTP-REQUEST PORTION
+    bool testing_script = false;
     
     // Now we can start cooking
     lcd.wake_up();
 
+    // 2 quick green flashes + beeps
+    single_beep(outputs, 0.1, active_buzzer);
+    single_beep(outputs, 0.2, green_led);
+    single_beep(outputs, 0.1, active_buzzer);
+    single_beep(outputs, 0.2, green_led);
+    fsleep(2);
+
+    single_beep(outputs, 0.1, active_buzzer);
+    lcd.send_string("CHALLENGE ACTIVE");
+    fsleep(0.5);
+
+    lcd.cursor_pos(0,1);
+    single_beep(outputs, 0.1, active_buzzer);
+    lcd.send_string("MORSE-CODE");
+    fsleep(3);
+
+    lcd.clear();
+
+    single_beep(outputs, 0.1, active_buzzer);
+    lcd.send_string("You will have");
+    fsleep(0.5);
+
+    lcd.cursor_pos(0,1);
+    single_beep(outputs, 0.1, active_buzzer);
+    lcd.send_string("30 seconds");
+    fsleep(3);
+
+    lcd.clear();
+
+    single_beep(outputs, 0.1, active_buzzer);
+    lcd.send_string("BEGIN!");
+    fsleep(1);
+
+    // --- TIMER & CHALLENGE LOGIC ---
+    lcd.clear();
 
     // CHARACTERS 12 AND 13 are to be overwritten
     lcd.send_string("Time Left: 30");
@@ -97,179 +152,244 @@ int main() {
     int timer_value{ 30 };
     bool button_pressed = false;
     int64_t click_duration_ms;
+
+    // Using this string to build up a letter via characters e.g. "." | ".-" | ".--" | ".---"
+    // If it matches a letter in the map it will be printed to the screen and this string will be cleared again.
     std::string morse_letter = "";
 
-    // this is where we'll store the answer for validation
+    // this is where we'll store the status of the key on-screen for validation
     std::string final_key = "";
+    bool challenge_passed = false;
 
-    while(true) {
-        std::chrono::time_point current_iteration{ std::chrono::steady_clock::now() };
-        auto time_elapsed_ms = (std::chrono::duration_cast<std::chrono::milliseconds>(current_iteration - last_state_check).count());
+    try{
+        while(continue_loop) {
+            std::chrono::time_point current_iteration{ std::chrono::steady_clock::now() };
+            auto time_elapsed_ms = (std::chrono::duration_cast<std::chrono::milliseconds>(current_iteration - last_state_check).count());
 
-        // Every 1000ms the LCD will expect an update to the timer as well as a basic iteration
-        if(time_elapsed_ms > 1000){
-            last_state_check = current_iteration;
-            
-            timer_value--;
-            std::string sendable_num = std::to_string(timer_value);
-            lcd.cursor_pos(11, 0);
-            lcd.send_string("  ");
-            lcd.cursor_pos(11, 0);
-            lcd.send_string(sendable_num);
-        }
+            // BY DEFAULT BUZZER WILL BE OFF, FOR EACH ITERATION, ON LCD ITERATIONS IT WILL TURN ON (CREATING A BEEP)
+            // outputs.set_value(active_buzzer, gpiod::line::value::INACTIVE);
+            outputs.set_value(red_led, gpiod::line::value::INACTIVE);
 
-        /*
-            At 5wpm in morse code according to the 1:3:7 rule if the feed is silent for about 1680ms its understood
-            as a space between letters. We'll use that logic to print whatevers in the string and clear it without having
-            to max out the number of characters.
-        */ 
-        auto silence_duration = std::chrono::duration_cast<std::chrono::milliseconds>(current_iteration - last_rising_edge).count();
+            // Every 1000ms the LCD will expect an update to the timer as well as a basic iteration
+            if(time_elapsed_ms > 1000){
+                // outputs.set_value(active_buzzer, gpiod::line::value::ACTIVE);
+                outputs.set_value(red_led, gpiod::line::value::ACTIVE);
 
-        if (!button_pressed && !morse_letter.empty() && silence_duration > 1680) {
-            std::cout << "Silence timeout reached. Sending letter to screen." << '\n';
-            std::cout << morse_letter << '\n';
-            
+                if(timer_value == 0){
+                    std::cout << "TIME RAN OUT, FINAL KEY SUBMITTED." << std::endl;
+                    continue_loop = false;
+                } else {
+                    last_state_check = current_iteration;
+                    
+                    // Sending empty spaces to this location clears the last increment of the timer
+                    timer_value--;
+                    std::string sendable_num = std::to_string(timer_value);
+                    lcd.cursor_pos(11, 0);
+                    lcd.send_string("  ");
+                    lcd.cursor_pos(11, 0);
+                    lcd.send_string(sendable_num);
 
-            // For the first morse_code print the cursor has to be manually set to the start position. Later positions will increment the previous.
-            if(final_key.empty()){
-                lcd.cursor_pos(5, 1);
-                lcd.save_cursor_pos(prev_coordinates);
-
-                lcd.print_morse(morse_letter);
-                final_key += lcd.char_to_morse(morse_letter);
-            } else {
-                int next_x = prev_coordinates[0] + 1;
-                int next_y = prev_coordinates[1];
-
-                lcd.cursor_pos(next_x, next_y);
-                lcd.save_cursor_pos(prev_coordinates);
-
-                lcd.print_morse(morse_letter);
-                final_key += lcd.char_to_morse(morse_letter);
+                    if(final_key == "SOS"){
+                        std::cout << "CORRECT PASSWORD PASSED, FINAL KEY SUBMITTED." << std::endl;
+                        continue_loop = false;
+                        challenge_passed = true;
+                    }
+                }
             }
 
-            // clear the string for new characters
-            morse_letter = "";
-        }
-
-        gpiod::edge_event_buffer buffer(10);
-        if(inputs.wait_edge_events(std::chrono::milliseconds(100))){
-            
-            // If any edge events are detected from our inputs write them to the buffer
-            inputs.read_edge_events(buffer);
-
             /*
-            Here’s what we’ll do for the morse code:
-            We’re going to run a loop that checks for button presses every 50 milliseconds, on press we’re going to
-            take a std::chrono time point and on release we’ll take another. We’ll calculate the delta between them 
-            and use that to synthesize whether or not its a dot or a dash.
+                At 5wpm in morse code according to the 1:3:7 rule if the feed is silent for about 1680ms its understood
+                as a space between letters. We'll use that logic to print whatevers in the string and clear it without having
+                to max out the number of characters.
+            */ 
+            auto silence_duration = std::chrono::duration_cast<std::chrono::milliseconds>(current_iteration - last_rising_edge).count();
 
-            If the button is held for anywhere up to 0→241ms will be considered a dot
-            If the button is held for anywhere from  241→720ms it will be considered a dash.
-            */
+            if (!button_pressed && !morse_letter.empty() && silence_duration > 1680) {
+                std::cout << "Silence timeout reached. Sending letter to screen." << '\n';
+                std::cout << morse_letter << '\n';
+                
+                // For the first morse_code print the cursor has to be manually set to the start position. Later positions will increment the previous.
+                if(final_key.empty()){
+                    lcd.cursor_pos(5, 1);
+                    lcd.save_cursor_pos(prev_coordinates);
 
-            for (const auto& edge_event : buffer){
-
-                if (edge_event.type() == gpiod::edge_event::event_type::FALLING_EDGE){
-                    std::cout << "Monitor: Button press detected! (Falling Edge)" << '\n';    
-                    outputs.set_value(active_buzzer, gpiod::line::value::ACTIVE);
-                    outputs.set_value(red_led, gpiod::line::value::ACTIVE);
-
-                    last_falling_edge = std::chrono::steady_clock::now();
-                    button_pressed = true;
-
-
-                } else if (edge_event.type() == gpiod::edge_event::event_type::RISING_EDGE){
-                    
-                    std::cout << "Monitor: Button was released! (Rising Edge)" << '\n';
-                    outputs.set_value(active_buzzer, gpiod::line::value::INACTIVE);
-                    outputs.set_value(red_led, gpiod::line::value::INACTIVE);
-
-                    last_rising_edge = std::chrono::steady_clock::now();
-                    if(button_pressed == true){
-                        // Duration is Release (Rising) minus Press (Falling)
-                        click_duration_ms = (std::chrono::duration_cast<std::chrono::milliseconds>(last_rising_edge - last_falling_edge).count());
-                        std::cout << "Click Duration(ms): " << click_duration_ms << '\n';
-                    } else {
-                        std::cout << "Click duration was not saved. Invalid button press occured." << std::endl;
-                    }
-                    
-                    // MORSE CODE LOGIC: All characters can be represented by 1-4 individual characters.
-                    // If there is space in the string it will be appended onto the current string.
-                    // If the maximum number of characters in a letter is reached it is translated and sent to the screen, clearing the string.
-                    if(morse_letter.size() < 4){
-                        if(click_duration_ms < 241){
-                            morse_letter += '.';
-                        } else if (click_duration_ms > 240) {
-                            morse_letter += '-';
-                        }
-                    
-                    if (morse_letter.size() == 4) {
-                        std::cout << "Maximum characters recieved, sending letter to screen." << '\n';
-                        std::cout << morse_letter << '\n';
-                        
-                        // For the first morse_code print the cursor has to be manually set to the start position. Later positions will increment the previous.
-                        if(final_key.empty()){
-                            lcd.cursor_pos(6, 1);
-                            lcd.save_cursor_pos(prev_coordinates);
-
-                            lcd.print_morse(morse_letter);
-                            final_key += lcd.char_to_morse(morse_letter);
-                        } else {
-                            int next_x = prev_coordinates[0] + 1;
-                            int next_y = prev_coordinates[1];
-
-                            lcd.cursor_pos(next_x, next_y);
-                            lcd.save_cursor_pos(prev_coordinates);
-
-                            lcd.print_morse(morse_letter);
-                            final_key += lcd.char_to_morse(morse_letter);
-                        }
-
-                        // clear the string for new characters
-                        morse_letter = "";
-                    }
-
-                    button_pressed = false;
-
+                    lcd.print_morse(morse_letter);
+                    final_key += lcd.char_to_morse(morse_letter);
                 } else {
-                    std::cout << "Unexpected error occured when fetching event type from buffer." << std::endl;
+                    int next_x = prev_coordinates[0] + 1;
+                    int next_y = prev_coordinates[1];
+
+                    lcd.cursor_pos(next_x, next_y);
+                    lcd.save_cursor_pos(prev_coordinates);
+
+                    lcd.print_morse(morse_letter);
+                    final_key += lcd.char_to_morse(morse_letter);
+                }
+
+                // clear the string for new characters
+                morse_letter = "";
+            }
+
+            gpiod::edge_event_buffer buffer(10);
+            if(inputs.wait_edge_events(std::chrono::milliseconds(100))){
+                
+                // If any edge events are detected from our inputs write them to the buffer
+                inputs.read_edge_events(buffer);
+
+                for (const auto& edge_event : buffer){
+
+                    if (edge_event.type() == gpiod::edge_event::event_type::FALLING_EDGE){
+                        std::cout << "Monitor: Button press detected! (Falling Edge)" << '\n';    
+
+                        outputs.set_value(white_led, gpiod::line::value::ACTIVE);
+                        last_falling_edge = std::chrono::steady_clock::now();
+                        button_pressed = true;
+
+
+                    } else if (edge_event.type() == gpiod::edge_event::event_type::RISING_EDGE){
+                        std::cout << "Monitor: Button was released! (Rising Edge)" << '\n';
+
+                        outputs.set_value(white_led, gpiod::line::value::INACTIVE);
+                        last_rising_edge = std::chrono::steady_clock::now();
+
+                        if(button_pressed == true){
+
+                            click_duration_ms = (std::chrono::duration_cast<std::chrono::milliseconds>(last_rising_edge - last_falling_edge).count());
+                            std::cout << "Click Duration(ms): " << click_duration_ms << '\n';
+
+                        } else {
+                            std::cout << "Click duration was not saved. Invalid button press occured." << std::endl;
+                        }
+                        
+                        // MORSE CODE LOGIC
+                        if(morse_letter.size() < 4){
+                            if(click_duration_ms < 241){
+                                morse_letter += '.';
+                            } else if (click_duration_ms > 240) {
+                                morse_letter += '-';
+                            }
+                        
+                        if (morse_letter.size() == 4) {
+                            std::cout << "Maximum characters recieved, sending letter to screen." << '\n';
+                            std::cout << morse_letter << '\n';
+                            
+                            if(final_key.empty()){
+                                lcd.cursor_pos(6, 1);
+                                lcd.save_cursor_pos(prev_coordinates);
+
+                                lcd.print_morse(morse_letter);
+                                final_key += lcd.char_to_morse(morse_letter);
+                            } else {
+                                int next_x = prev_coordinates[0] + 1;
+                                int next_y = prev_coordinates[1];
+
+                                lcd.cursor_pos(next_x, next_y);
+                                lcd.save_cursor_pos(prev_coordinates);
+
+                                lcd.print_morse(morse_letter);
+                                final_key += lcd.char_to_morse(morse_letter);
+                            }
+
+                            // clear the string for new characters
+                            morse_letter = "";
+                        }
+
+                        button_pressed = false;
+
+                    } else {
+                        std::cout << "Unexpected error occured when fetching event type from buffer." << std::endl;
+                    }
                 }
             }
         }
-        // Every 50ms this loop will check for button presses
-        usleep(50000);
-    }
-}
-
-
-    /*
-    Extra libraries used for this section:
-    dotenv.h, HTTPRequest.h
-    https://github.com/laserpants/dotenv-cpp
-    https://github.com/elnormous/HTTPRequest
-    */
-    try {
-        // This code makes a post request to flask to send the code 10.
-        dotenv::init();
-        const auto address = std::getenv("NOTIFICATION_ADDRESS");
-        http::Request request{address};
-
-        const std::string body = "10";
-        const auto response = request.send("POST", body, {
-            {"Content-Type", "application/json"}
-        });
-        std::cout << std::string{response.body.begin(), response.body.end()} << '\n'; // print the result
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Request failed, error: " << e.what() << '\n';
+            // Every 50ms this loop will check for button presses
+            usleep(50000);
+        }
+    } catch (const std::system_error& e) {
+        std::cout << "Main loop stopped!" << '\n';
+        std::cout << "Interrupted by: " << e.what() << '\n';
     }
 
-    std::cout << "Closing..." << '\n';
-    // Note: ensure fsleep is defined or change to sleep/usleep
-    sleep(1); 
-    std::cout << "Finished." << std::endl;
+    std::cout << "Cleaning up..." << '\n';
+    fsleep(0.5);
 
+    outputs.set_value(active_buzzer, gpiod::line::value::INACTIVE);
+    outputs.set_value(red_led, gpiod::line::value::INACTIVE);
+    lcd.clear();
+
+    if (challenge_passed == true){
+        single_beep(outputs, 0.1, active_buzzer);
+        lcd.send_string("BOOOOOOOO");
+        fsleep(0.5);
+
+        lcd.cursor_pos(0,1);
+        single_beep(outputs, 0.1, active_buzzer);
+        lcd.send_string("You win, I guess");
+        fsleep(3);
+
+        lcd.clear();
+        single_beep(outputs, 0.1, active_buzzer);
+        lcd.send_string("For now...");
+
+        // 2 quick green flashes + beeps
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, green_led);
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, green_led);
+    } else {
+
+        single_beep(outputs, 0.1, active_buzzer);
+        lcd.send_string("filthy intruder");
+        fsleep(0.5);
+
+        lcd.cursor_pos(0,1);
+        single_beep(outputs, 0.1, active_buzzer);
+        lcd.send_string("i knw what u are");
+
+        std::cout << "Finished Loop. Starting HTTP request..." << '\n';
+    std::cout << "Final key recieved: " << final_key << std::endl;
+    
+    if(testing_script == false){
+        try{
+            dotenv::init();
+            const auto address = std::getenv("NOTIFICATION_ADDRESS");
+            http::Request request{address};
+
+            std::string body;
+            if(final_key == "SOS"){
+                body = "200";
+            } else {
+                body = "401";
+            }
+
+            const auto response = request.send("POST", body, {
+                {"Content-Type", "application/json"}
+            });
+                std::cout << std::string{response.body.begin(), response.body.end()} << '\n';
+            }
+        catch (const std::exception& e)
+            {
+                std::cerr << "Request failed, error: " << e.what() << '\n';
+            }
+        } else {
+            std::cout << "HTTP-REQUEST SKIPPED DUE TO TESTING." << std::endl;
+        }
+
+        fsleep(30);
+
+        // 2 quick red flashes + beeps
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, red_led);
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, red_led);
+    }
+
+    lcd.shutdown();
+    inputs.release();
+    outputs.release();
+    main_header.close();
+
+    std::cout << "Closing program." << '\n';
+    fsleep(1); 
     return 0;
 }

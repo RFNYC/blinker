@@ -145,176 +145,170 @@ class LCD1602{
 
 
     public:
-
-    void wake_up(){
-        wake_lcd(i2c_adapter, PIN4_D4, PIN5_D5);
-        cursor_pos(0,0);
-        usleep(50000);
-    }
-
-    void shutdown(){
-        shutdown_lcd(i2c_adapter);
-    }
-
-    /*
-    Send a message to the LCD screen. Args: Message1, Message2
-
-    Notes:
-    If you want to only write on the bottom line you can just write ("") as arg1 and then write the second message.
-    Writes to the cursor's position square. You set where you want to start writing yourself manually using cursor_pos().
-    */
-    void send_string(const std::string& message = "", const std::string& message2 = ""){
-
-        int char_count = 0;
-        int lines_in_use = 1;
-
-        for(char character : message){
-            if(char_count == 16){
-                send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
-                lines_in_use++;
-            }
-
-            if(char_count == 31){
-                std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
-            }
-
-            send_byte(i2c_adapter, character, 1);
-            char_count++;
+        void wake_up(){
+            wake_lcd(i2c_adapter, PIN4_D4, PIN5_D5);
+            cursor_pos(0,0);
+            usleep(50000);
         }
-        
-        // Only send the second message if the first does not exceed 16 chars
-        if(message2 != ""){
-            if(lines_in_use > 1){
-                std::cout << "Cannot accept the message: " << message2 << ". The second line is already in use by message 1.\nPlease keep your first message under 17 characters." << std::endl;
-            } else {
-                send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
 
-                for(char character : message2){
-                    if(char_count == 31){
-                        std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
+        void shutdown(){
+            shutdown_lcd(i2c_adapter);
+        }
+
+        /*
+        Send a message to the LCD screen. Args: Message1, Message2
+
+        Notes:
+        If you want to only write on the bottom line you can just write ("") as arg1 and then write the second message.
+        Writes to the cursor's position square. You set where you want to start writing yourself manually using cursor_pos().
+        */
+        void send_string(const std::string& message = "", const std::string& message2 = ""){
+
+            int char_count = 0;
+            int lines_in_use = 1;
+
+            for(char character : message){
+                if(char_count == 16){
+                    send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
+                    lines_in_use++;
+                }
+
+                if(char_count == 31){
+                    std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
+                }
+
+                send_byte(i2c_adapter, character, 1);
+                char_count++;
+            }
+            
+            // Only send the second message if the first does not exceed 16 chars
+            if(message2 != ""){
+                if(lines_in_use > 1){
+                    std::cout << "Cannot accept the message: " << message2 << ". The second line is already in use by message 1.\nPlease keep your first message under 17 characters." << std::endl;
+                } else {
+                    send_byte(i2c_adapter, GOTO_SECOND_LINE, 0);
+
+                    for(char character : message2){
+                        if(char_count == 31){
+                            std::cout << "You've reached the LCD's character limit. Any characters after the 32nd character will not be displayed." << std::endl;
+                        }
+
+                        send_byte(i2c_adapter, character, 1);
+                        char_count++;
                     }
-
-                    send_byte(i2c_adapter, character, 1);
-                    char_count++;
                 }
             }
         }
-    }
 
-    /*
-    Sets the cursor to your chosen (x, y) coordinate on the screen.
-    x: 0-16 = square position (from left to right) y: y=line-1, 1=line-2
-    */
-    void cursor_pos(uint8_t x, uint8_t y) {
-        uint8_t address;
-        
-        if (y == 0) {
-            address = 0b00000000 + x;
-        } else {
-            address = 0b01000000 + x;
-        }
-
-        send_byte(i2c_adapter, 0b10000000 | address, 0); 
-
-        // Keeping track of cursor position
-        cursor_x = x;
-        cursor_y = y;
-    }
-
-    // Writes the cursor position to a given array
-    void save_cursor_pos(int* array){
-        array[0] = cursor_x;
-        array[1] = cursor_y;
-    }
-
-    /*
-    Overwrites the character to your chosen (x, y) coordinate with an empty space.
-    x: 0-16 = square position (from left to right) y: y=line-1, 1=line-2
-    */
-    void delete_char(uint8_t x, uint8_t y) {
-        cursor_pos(x,y);
-        send_byte(i2c_adapter, ' ', 1);
-
-        // Send the cursor back to the origin for future use
-        cursor_pos(0,0);
-    }
-
-    void toggle_cursor(){
-        
-        if(cursor_toggled == 0){
-            send_byte(i2c_adapter, TURN_ON_CURSOR, 0);
-            cursor_toggled = true;
-        } else {
-            // Return to startup display settings (cursor off)
-            send_byte(i2c_adapter, S_DISPLAY_SET, 0);
-            cursor_toggled = false;
-        }
-
-    }
- 
-    void print_morse(const std::string& message){
-            if(char character = letter_table.at(message)){
-                character_feeder(character);
+        /*
+        Sets the cursor to your chosen (x, y) coordinate on the screen.
+        x: 0-16 = square position (from left to right) y: y=line-1, 1=line-2
+        */
+        void cursor_pos(uint8_t x, uint8_t y) {
+            uint8_t address;
+            
+            if (y == 0) {
+                address = 0b00000000 + x;
             } else {
-                std::cout << "Incorrect character combination recieved. String thrown out." << std::endl;
+                address = 0b01000000 + x;
             }
-        }
-    
-    // I know this is redundant but i didnt feel like rewriting the syntax for the other one. #lazy
-    char char_to_morse(const std::string& message){
-        if(char character = letter_table.at(message)){
-            return character;
-        } else {
-            std::cout << "Incorrect character combination recieved. String thrown out." << std::endl;
-            return ' ';
-        }
-    }
-    
-    // Types a given string character by character (Proof of concept function). 
-    void write_animation(const std::string &message){
-            clear();
-            toggle_cursor();
-            for (char character : message){  
-                character_feeder(character);
-                fsleep(0.1);
-            }
-            toggle_cursor();
+
+            send_byte(i2c_adapter, 0b10000000 | address, 0); 
+
+            // Keeping track of cursor position
+            cursor_x = x;
+            cursor_y = y;
         }
 
-    /*
-    Delete all characters from a row on LCD screen.
-    X=1: Row-1
-    X=2: Row-2
-    
-    Passing no arguments --> clear entire screen.
-    */
-    void clear(int X = 0){
-        if(X == 1){
+        // Writes the cursor position to a given array
+        void save_cursor_pos(int* array){
+            array[0] = cursor_x;
+            array[1] = cursor_y;
+        }
+
+        /*
+        Overwrites the character to your chosen (x, y) coordinate with an empty space.
+        x: 0-16 = square position (from left to right) y: y=line-1, 1=line-2
+        */
+        void delete_char(uint8_t x, uint8_t y) {
+            cursor_pos(x,y);
+            send_byte(i2c_adapter, ' ', 1);
+
+            // Send the cursor back to the origin for future use
             cursor_pos(0,0);
-            send_string("                ");
-        } else if (X == 2){
-            cursor_pos(0,1);
-            send_string("", "                ");
-        } else {
-            clear_display(i2c_adapter);
         }
-    }
 
-    // Constructor (runs on initialization)
-    LCD1602(int adapter_val, uint8_t address_val ){
+        void toggle_cursor(){
+            
+            if(cursor_toggled == 0){
+                send_byte(i2c_adapter, TURN_ON_CURSOR, 0);
+                cursor_toggled = true;
+            } else {
+                // Return to startup display settings (cursor off)
+                send_byte(i2c_adapter, S_DISPLAY_SET, 0);
+                cursor_toggled = false;
+            }
 
-        // Assign member vars values given by the user (me)
-        i2c_adapter = adapter_val;
-        slave_address = address_val;
+        }
+    
+        void print_morse(const std::string& message){
+                if(char character = letter_table.at(message)){
+                    character_feeder(character);
+                } else {
+                    std::cout << "Incorrect character combination recieved. String thrown out." << std::endl;
+                }
+            }
+        
+        // I know this is redundant but i didnt feel like rewriting the syntax for the other one. #lazy
+        char char_to_morse(const std::string& message) {
+            // Check if the key exists first
+            if (letter_table.count(message)) {
+                return letter_table.at(message);
+            } else {
+                std::cout << "Incorrect character combination received: " << message << std::endl;
+                return '\0';
+            }
+        }
+        
+        // Types a given string character by character (Proof of concept function). 
+        void write_animation(const std::string &message){
+                clear();
+                toggle_cursor();
+                for (char character : message){  
+                    character_feeder(character);
+                    fsleep(0.1);
+                }
+                toggle_cursor();
+            }
 
-    }
+        /*
+        Delete all characters from a row on LCD screen.
+        X=1: Row-1
+        X=2: Row-2
+        
+        Passing no arguments --> clear entire screen.
+        Also returns the cursor back to coordinate (0,0).
+        */
+        void clear(int X = 0){
+            if(X == 1){
+                cursor_pos(0,0);
+                send_string("                ");
+            } else if (X == 2){
+                cursor_pos(0,1);
+                send_string("", "                ");
+            } else {
+                clear_display(i2c_adapter);
+            }
+        }
 
-    // Destructor (runs on object deletion)
-    ~LCD1602(){
+        // Constructor (runs on initialization)
+        LCD1602(int adapter_val, uint8_t address_val ){
 
-        // Keep this commented out during testing unless you want the device to turn off after the script finishes.
-        // shutdown();
-    }
+            // Assign member vars values given by the user (me)
+            i2c_adapter = adapter_val;
+            slave_address = address_val;
+
+        }
 };
 
 #endif
