@@ -148,6 +148,8 @@ class LCD1602{
 
     void wake_up(){
         wake_lcd(i2c_adapter, PIN4_D4, PIN5_D5);
+        cursor_pos(0,0);
+        usleep(50000);
     }
 
     void shutdown(){
@@ -219,6 +221,12 @@ class LCD1602{
         cursor_y = y;
     }
 
+    // Writes the cursor position to a given array
+    void save_cursor_pos(int* array){
+        array[0] = cursor_x;
+        array[1] = cursor_y;
+    }
+
     /*
     Overwrites the character to your chosen (x, y) coordinate with an empty space.
     x: 0-16 = square position (from left to right) y: y=line-1, 1=line-2
@@ -247,8 +255,20 @@ class LCD1602{
     void print_morse(const std::string& message){
             if(char character = letter_table.at(message)){
                 character_feeder(character);
+            } else {
+                std::cout << "Incorrect character combination recieved. String thrown out." << std::endl;
             }
         }
+    
+    // I know this is redundant but i didnt feel like rewriting the syntax for the other one. #lazy
+    char char_to_morse(const std::string& message){
+        if(char character = letter_table.at(message)){
+            return character;
+        } else {
+            std::cout << "Incorrect character combination recieved. String thrown out." << std::endl;
+            return ' ';
+        }
+    }
     
     // Types a given string character by character (Proof of concept function). 
     void write_animation(const std::string &message){
