@@ -2,14 +2,16 @@
 
 This repo is intended to show how to use [libgpiod](https://libgpiod.readthedocs.io/en/latest/) in C++. I found resources on how to use the library in C, but there aren't many on using it in C++, so I hope to build up this repo to help my own understanding and help out others.
 
-For all examples, I used `gpiochip0` to control the main 40-pin header of the Raspberry Pi 4 and all notes are written with this context in mind.
+For all examples, I used `gpiochip0` to control the main 40-pin header of the Raspberry Pi 4 and all notes are written with this context in mind. 
+*Any files flagged `DEMO` have a video or gif showing hardware*
 
 # Examples
-1. **libgpiod-led**: Output to 3 LEDs.
-2. **libgpiod-monitor-polling**: Watch for edge events from a GPIO pin using a polling method.
-3. **libgpiod-monitor-thread**: Watch for edge events from a GPIO pin on a separate thread.
-4. **libgpiod-sensor**: Output to an active buzzer and LED via sensor input.
-5. **capstone1**: Morse Code Challenge + alarm system & push notifications. Features timing-based input (dot/dash), a custom I²C LCD1602 driver, and HTTP notifications.
+1. **capstone1**: Morse Code Challenge + alarm system & push notifications. Features timing-based input (dot/dash), a custom I²C LCD1602 driver, and HTTP notifications. `(DEMO)`
+
+2. **libgpiod-led**: Output to 3 LEDs. `(DEMO)`
+3. **libgpiod-monitor-polling**: Watch for edge events from a GPIO pin using a polling method.
+4. **libgpiod-monitor-thread**: Watch for edge events from a GPIO pin on a separate thread.
+5. **libgpiod-sensor**: Output to an active buzzer and LED via sensor input. `(DEMO)`
 
 # Need to know (libgpiod)
 
