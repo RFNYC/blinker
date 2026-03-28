@@ -6,18 +6,13 @@ Users enter Morse code via short and long button presses (dot/dash), which are t
 
 ## Hardware Used
 
-GPIO Pins (BCM):
-
-| Pin | Device |
-|----|----|
-| 21 | Button |
-| 5  | Buzzer |
-| 6  | Red LED |
-| 19 | White LED |
-| 13 | Green LED |
-
+This capstone makes use of the gpiopins: 21, 5, 6, 19, and 13.
+In these slots are: 
+- 1 Button
+- 1 Active buzzer
+- 3 LEDs
+  
 Additional hardware:
-
 - LCD1602 with PCF8574 I²C backpack (address 0x27)
 
 ## Learning goals:
@@ -50,4 +45,7 @@ make clean
 
 ## Demo
 
-coming soon
+Unfortunately to make this fit on github I had to compress the video down alot and remove the audio so its hard to see whats happening. On startup you are told the name of the challenge, that you will have 30 seconds to complete said challenge, and a final message saying "BEGIN!". After that a timer runs down from 30 seconds on the top line. On the second line is where my input "SOS" was typed out, disabling the timer and "granting" me access.  Sorry about the poor film and lack of audio, definitely learned my lesson with this project.
+
+https://github.com/user-attachments/assets/f7ed7459-4e23-4cdd-853f-de1e1498d200
+
