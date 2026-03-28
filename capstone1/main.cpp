@@ -27,11 +27,6 @@ void single_beep(gpiod::line_request& outputs, float time, int output_pin){
     outputs.set_value(output_pin, gpiod::line::value::INACTIVE);
 }
 
-/*
-TODO:
-- Hook alarm system via flask and add some more lights.
-*/
-
 int main() {
 
     // Register stop_loop() as your CTRL+C function via <csignal>
@@ -85,6 +80,9 @@ int main() {
     input_settings.set_direction(gpiod::line::direction::INPUT);
     input_settings.set_edge_detection(gpiod::line::edge::BOTH);
 
+    // Prevent misreads from switch bouncing up and down after you press the button 
+    input_settings.set_debounce_period(std::chrono::milliseconds(10));
+
     // This tethers the button to the high state, more explanation needed write notes on this.
     // KEEPS PIN AT 3.3V UNLESS INTERACTED WITH.
     input_settings.set_bias(gpiod::line::bias::PULL_UP);
@@ -114,7 +112,7 @@ int main() {
     lcd.cursor_pos(0,1);
     single_beep(outputs, 0.1, active_buzzer);
     lcd.send_string("MORSE-CODE");
-    fsleep(3);
+    fsleep(1);
 
     lcd.clear();
 
@@ -125,7 +123,7 @@ int main() {
     lcd.cursor_pos(0,1);
     single_beep(outputs, 0.1, active_buzzer);
     lcd.send_string("30 seconds");
-    fsleep(3);
+    fsleep(1);
 
     lcd.clear();
 
@@ -231,7 +229,7 @@ int main() {
             }
 
             gpiod::edge_event_buffer buffer(10);
-            if(inputs.wait_edge_events(std::chrono::milliseconds(100))){
+            if(inputs.wait_edge_events(std::chrono::milliseconds(10))){
                 
                 // If any edge events are detected from our inputs write them to the buffer
                 inputs.read_edge_events(buffer);
@@ -269,29 +267,30 @@ int main() {
                                 morse_letter += '-';
                             }
                         
-                        if (morse_letter.size() == 4) {
-                            std::cout << "Maximum characters recieved, sending letter to screen." << '\n';
-                            std::cout << morse_letter << '\n';
-                            
-                            if(final_key.empty()){
-                                lcd.cursor_pos(6, 1);
-                                lcd.save_cursor_pos(prev_coordinates);
+                            if (morse_letter.size() == 4) {
+                                std::cout << "Maximum characters recieved, sending letter to screen." << '\n';
+                                std::cout << morse_letter << '\n';
+                                
+                                if(final_key.empty()){
+                                    lcd.cursor_pos(6, 1);
+                                    lcd.save_cursor_pos(prev_coordinates);
 
-                                lcd.print_morse(morse_letter);
-                                final_key += lcd.char_to_morse(morse_letter);
-                            } else {
-                                int next_x = prev_coordinates[0] + 1;
-                                int next_y = prev_coordinates[1];
+                                    lcd.print_morse(morse_letter);
+                                    final_key += lcd.char_to_morse(morse_letter);
+                                } else {
+                                    int next_x = prev_coordinates[0] + 1;
+                                    int next_y = prev_coordinates[1];
 
-                                lcd.cursor_pos(next_x, next_y);
-                                lcd.save_cursor_pos(prev_coordinates);
+                                    lcd.cursor_pos(next_x, next_y);
+                                    lcd.save_cursor_pos(prev_coordinates);
 
-                                lcd.print_morse(morse_letter);
-                                final_key += lcd.char_to_morse(morse_letter);
+                                    lcd.print_morse(morse_letter);
+                                    final_key += lcd.char_to_morse(morse_letter);
+                                }
+
+                                // clear the string for new characters
+                                morse_letter = "";
                             }
-
-                            // clear the string for new characters
-                            morse_letter = "";
                         }
 
                         button_pressed = false;
@@ -301,7 +300,6 @@ int main() {
                     }
                 }
             }
-        }
             // Every 50ms this loop will check for button presses
             usleep(50000);
         }
@@ -319,17 +317,13 @@ int main() {
 
     if (challenge_passed == true){
         single_beep(outputs, 0.1, active_buzzer);
-        lcd.send_string("BOOOOOOOO");
+        lcd.send_string("CHALLENGE PASSED");
         fsleep(0.5);
 
         lcd.cursor_pos(0,1);
         single_beep(outputs, 0.1, active_buzzer);
-        lcd.send_string("You win, I guess");
+        lcd.send_string("Access Granted.");
         fsleep(3);
-
-        lcd.clear();
-        single_beep(outputs, 0.1, active_buzzer);
-        lcd.send_string("For now...");
 
         // 2 quick green flashes + beeps
         single_beep(outputs, 0.1, active_buzzer);
@@ -339,14 +333,21 @@ int main() {
     } else {
 
         single_beep(outputs, 0.1, active_buzzer);
-        lcd.send_string("filthy intruder");
+        lcd.send_string("CHALLENGE FAILED");
         fsleep(0.5);
 
         lcd.cursor_pos(0,1);
         single_beep(outputs, 0.1, active_buzzer);
-        lcd.send_string("i knw what u are");
+        lcd.send_string("Access Denied.");
+        
+        // 2 quick red flashes + beeps
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, red_led);
+        single_beep(outputs, 0.1, active_buzzer);
+        single_beep(outputs, 0.2, red_led);
+    }
 
-        std::cout << "Finished Loop. Starting HTTP request..." << '\n';
+    std::cout << "Finished Loop. Starting HTTP request..." << '\n';
     std::cout << "Final key recieved: " << final_key << std::endl;
     
     if(testing_script == false){
@@ -365,23 +366,14 @@ int main() {
             const auto response = request.send("POST", body, {
                 {"Content-Type", "application/json"}
             });
-                std::cout << std::string{response.body.begin(), response.body.end()} << '\n';
-            }
-        catch (const std::exception& e)
-            {
-                std::cerr << "Request failed, error: " << e.what() << '\n';
-            }
-        } else {
-            std::cout << "HTTP-REQUEST SKIPPED DUE TO TESTING." << std::endl;
+            std::cout << std::string{response.body.begin(), response.body.end()} << '\n';
         }
-
-        fsleep(30);
-
-        // 2 quick red flashes + beeps
-        single_beep(outputs, 0.1, active_buzzer);
-        single_beep(outputs, 0.2, red_led);
-        single_beep(outputs, 0.1, active_buzzer);
-        single_beep(outputs, 0.2, red_led);
+        catch (const std::exception& e)
+        {
+            std::cerr << "Request failed, error: " << e.what() << '\n';
+        }
+    } else {
+        std::cout << "HTTP-REQUEST SKIPPED DUE TO TESTING." << std::endl;
     }
 
     lcd.shutdown();
