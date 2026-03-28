@@ -45,7 +45,9 @@ make clean
 
 ## Demo
 
-Unfortunately to make this fit on github I had to compress the video down alot and remove the audio so its hard to see whats happening. On startup you are told the name of the challenge, that you will have 30 seconds to complete said challenge, and a final message saying "BEGIN!". After that a timer runs down from 30 seconds on the top line. On the second line is where my input "SOS" was typed out, disabling the timer and "granting" me access.  Sorry about the poor film and lack of audio, definitely learned my lesson with this project.
+Unfortunately to make this fit on github I had to compress the video down alot and I removed the audio since I was picking up extra noise.
 
-https://github.com/user-attachments/assets/f7ed7459-4e23-4cdd-853f-de1e1498d200
+On startup you are told the name of the challenge, that you will have 30 seconds to complete said challenge, and a final message saying "BEGIN!". After that a timer runs down from 30 seconds on the top line. As the time goes there is a beeping and red light flashing. On the second line is where my input "SOS" was typed out, disabling the timer and "granting" me access.
+
+https://github.com/user-attachments/assets/f436fda7-38fc-4fc8-9998-df701123bc91
 
